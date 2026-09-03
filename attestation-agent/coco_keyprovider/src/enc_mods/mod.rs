@@ -20,21 +20,40 @@ use self::{crypto::Algorithm, kbs::register_kek};
 mod crypto;
 mod kbs;
 
+#[cfg(feature = "ccm_kbc")]
+pub(crate) mod dsm;
+
 /// `AnnotationPacket` is what a encrypted image layer's
 /// `org.opencontainers.image.enc.keys.provider.attestation-agent`
 /// annotation should contain when it is encrypted by CoCo's
 /// encryption modules. Please refer to issue
 /// <https://github.com/confidential-containers/attestation-agent/issues/113>
+///
+/// Field names must match `AnnotationPacketV2`, which deserializes this. A KMS
+/// provider's crypto parameters go inside `annotations`: `AnnotationPacketV2`
+/// forwards only `wrapped_data`, `kid` and `annotations` to a KMS plugin, so
+/// the top-level `iv` and `wrap_type` reach the `"kbs"` provider alone.
 #[derive(Serialize, Deserialize)]
 pub struct AnnotationPacket {
     // Key ID to manage multiple keys
     pub kid: String,
     // Encrypted key to unwrap (base64-encoded)
     pub wrapped_data: String,
-    // Initialisation vector (base64-encoded)
-    pub iv: String,
-    // Wrap type to specify encryption algorithm and mode
-    pub wrap_type: String,
+    // Initialisation vector (base64-encoded). `"kbs"` only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub iv: Option<String>,
+    // Wrap type to specify encryption algorithm and mode. `"kbs"` only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_type: Option<String>,
+    // Selects which provider unwraps this DEK at run time. `None` deserializes
+    // as AnnotationPacketV2's default, `"kbs"`. Any other value routes to the
+    // matching KMS plugin instead of the local unwrap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    // Provider-specific parameters of this encryption, forwarded to the KMS
+    // plugin as its crypto context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 struct InputParams {
@@ -82,7 +101,7 @@ fn parse_input_params(input: &str) -> Result<InputParams> {
     let keyid = map.get("keyid").map(|id| id.to_string());
     let keypath = map.get("keypath").map(|p| p.to_string());
     let algorithm = map
-        .get("keypath")
+        .get("algorithm")
         .map(|alg| (*alg).try_into().unwrap_or_default())
         .unwrap_or_default();
     Ok(InputParams {
@@ -224,8 +243,10 @@ pub async fn enc_optsdata_gen_anno(
     let annotation = AnnotationPacket {
         kid: kid.clone(),
         wrapped_data: engine.encode(encrypt_optsdata),
-        iv: engine.encode(iv),
-        wrap_type: algorithm.to_string(),
+        iv: Some(engine.encode(iv)),
+        wrap_type: Some(algorithm.to_string()),
+        provider: None,
+        annotations: None,
     };
 
     serde_json::to_string(&annotation).map_err(|_| anyhow!("Serialize annotation failed"))
