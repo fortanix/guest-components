@@ -3,6 +3,7 @@
 CoCo Keyprovider is a very simple keyprovider tool, which can help to generate CoCo-compatible encrypted images.
 The encrypted image can be decrypted using the following Key Broker Client (KBC):
  * cc-kbc
+ * ccm-kbc
  * offline-fs-kbc
  * sample kbc (toy KBC still supported for historical reason)
 

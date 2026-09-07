@@ -17,6 +17,9 @@ shadow!(build);
 pub mod enc_mods;
 pub mod grpc;
 
+#[cfg(feature = "ccm_kbc")]
+use crate::grpc::KekMode;
+
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -45,6 +48,31 @@ struct Cli {
     /// `/run/confidential-containers/coco_keyprovider.pid`
     #[arg(short, long, default_value = "false")]
     daemon: bool,
+
+    /// Fortanix DSM endpoint URL. Requires `dsm_api_key_file`.
+    #[cfg(feature = "ccm_kbc")]
+    #[arg(long, requires = "dsm_api_key_file")]
+    dsm_endpoint: Option<String>,
+
+    /// Path to a file containing a DSM API key. Required if `dsm_endpoint`
+    /// is provided.
+    #[cfg(feature = "ccm_kbc")]
+    #[arg(long, requires = "dsm_endpoint")]
+    dsm_api_key_file: Option<PathBuf>,
+
+    /// How many KEKs to create in DSM for one image. `per-layer` (the default)
+    /// creates one per encrypted layer; `shared` creates one for the whole
+    /// image. A `keyid` parameter names an existing KEK and overrides this.
+    #[cfg(feature = "ccm_kbc")]
+    #[arg(long, value_enum, default_value_t = KekMode::PerLayer)]
+    kek_mode: KekMode,
+
+    /// Name of the KEK sobject(s) created in DSM. Defaults to
+    /// `ccm-kbc-kek-<uuid>`. In `per-layer` mode the layer index is appended:
+    /// `<name>-0`, `<name>-1`, ...
+    #[cfg(feature = "ccm_kbc")]
+    #[arg(long)]
+    kek_name: Option<String>,
 }
 
 #[tokio::main]
@@ -97,6 +125,23 @@ loglevel: {env_filter}
         );
     }
 
+    #[cfg(feature = "ccm_kbc")]
+    let dsm_configured = cli.dsm_endpoint.is_some() && cli.dsm_api_key_file.is_some();
+
+    #[cfg(feature = "ccm_kbc")]
+    if dsm_configured {
+        info!(
+            "DSM endpoint configured: KEKs will be created in DSM as non-exportable sobjects ({:?})",
+            cli.dsm_endpoint
+        );
+        match cli.kek_mode {
+            KekMode::Shared => info!("KEK mode: shared, one KEK wraps every layer of the image"),
+            KekMode::PerLayer => info!("KEK mode: per-layer, one new KEK per encrypted layer"),
+        }
+    } else if cli.kek_mode != KekMode::default() || cli.kek_name.is_some() {
+        bail!("--kek-mode/--kek-name require --dsm-endpoint and --dsm-api-key-file");
+    }
+
     if cli.daemon {
         fs::create_dir_all("/run/confidential-containers")
             .await
@@ -116,7 +161,20 @@ loglevel: {env_filter}
         daemonize.start().context("daemonize failed")?;
     }
 
-    grpc::start_service(cli.socket, cli.auth_private_key, cli.kbs).await?;
+    grpc::start_service(
+        cli.socket,
+        cli.auth_private_key,
+        cli.kbs,
+        #[cfg(feature = "ccm_kbc")]
+        cli.dsm_endpoint,
+        #[cfg(feature = "ccm_kbc")]
+        cli.dsm_api_key_file,
+        #[cfg(feature = "ccm_kbc")]
+        cli.kek_mode,
+        #[cfg(feature = "ccm_kbc")]
+        cli.kek_name,
+    )
+    .await?;
 
     Ok(())
 }

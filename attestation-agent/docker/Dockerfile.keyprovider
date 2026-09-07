@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 	protobuf-compiler
 WORKDIR /build
 COPY . .
-RUN cargo build --release -p coco_keyprovider
+RUN cargo build --release -p coco_keyprovider --features ccm_kbc
 RUN mv target/release/coco_keyprovider .
 
 FROM golang:1.21.6-bookworm as skopeo
@@ -40,6 +40,7 @@ RUN make install
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
 	ca-certificates \
+	jq \
 	libdevmapper1.02.1 \
 	libgpgme11 \
 	--no-install-recommends
@@ -55,6 +56,7 @@ COPY <<EOF /etc/ocicrypt.conf
 }
 EOF
 COPY attestation-agent/hack/encrypt-image.sh /encrypt.sh
+COPY attestation-agent/hack/dsm-encrypt.sh /dsm-encrypt.sh
 ENV OCICRYPT_KEYPROVIDER_CONFIG="/etc/ocicrypt.conf"
 CMD ["coco_keyprovider", "--socket", "0.0.0.0:50000"]
 EXPOSE 50000

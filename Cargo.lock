@@ -1726,6 +1726,7 @@ dependencies = [
  "reqwest 0.13.4",
  "resource_uri",
  "rstest",
+ "sdkms",
  "serde",
  "serde_json",
  "shadow-rs",
@@ -3449,6 +3450,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "headers"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06683b93020a07e3dbcf5f8c0f6d40080d725bea7936fc01ad345c01b97dc270"
+dependencies = [
+ "base64 0.21.7",
+ "bytes",
+ "headers-core",
+ "http 0.2.12",
+ "httpdate",
+ "mime 0.3.17",
+ "sha1",
+]
+
+[[package]]
+name = "headers-core"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7f66481bfee273957b1f20485a4ff3362987f85b2c236580d81b4eb7a326429"
+dependencies = [
+ "http 0.2.12",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4535,6 +4560,7 @@ dependencies = [
  "const_format",
  "hex",
  "kbs_protocol",
+ "native-tls",
  "openssl",
  "prost 0.14.4",
  "protos",
@@ -4542,10 +4568,12 @@ dependencies = [
  "reqwest 0.13.4",
  "resource_uri",
  "rstest",
+ "sdkms",
  "serde",
  "serde_json",
  "serial_test",
  "sha2 0.11.0",
+ "simple-hyper-client",
  "strum 0.28.0",
  "tempfile",
  "thiserror 2.0.20",
@@ -7302,6 +7330,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkms"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b97c41b4e479383257e0f868303a5683d90e9f374b8818b0b418ec04ea22a12"
+dependencies = [
+ "base64 0.13.1",
+ "bitflags 1.3.2",
+ "headers",
+ "log 0.4.29",
+ "serde",
+ "serde_json",
+ "simple-hyper-client",
+ "time 0.3.47",
+ "tokio-native-tls",
+ "uuid 1.26.0",
+]
+
+[[package]]
 name = "sec1"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7876,6 +7922,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
+name = "simple-hyper-client"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad8561dab46cf18be56eef057219f48f576d6bb91847cc33d7d4f2779bcd217"
+dependencies = [
+ "futures-executor",
+ "headers",
+ "http 0.2.12",
+ "hyper 0.14.32",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-stream",
+]
+
+[[package]]
 name = "simple_asn1"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8184,7 +8245,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
