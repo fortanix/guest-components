@@ -27,7 +27,8 @@ resource_uri.path = "../deps/resource_uri"
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
-tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
+sdkms = { version = "0.5", optional = true }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync"] }
 tonic.workspace = true
 uuid = { workspace = true, features = ["fast-rng", "v4"] }
 
@@ -38,3 +39,5 @@ shadow-rs.workspace = true
 rstest.workspace = true
 
 [features]
+default = []
+ccm_kbc = ["dep:sdkms"]

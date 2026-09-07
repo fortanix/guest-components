@@ -3,111 +3,93 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-// DSM client: authenticate with the CCM-issued workload certificate,
-// then unwrap a key.
+// DSM client: authenticate with the CCM-issued workload certificate, then
+// either export a key by UUID or have DSM decrypt a wrapped key.
 
-use anyhow::{Context, Result, bail};
-use base64::Engine;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Result};
+use sdkms::SdkmsClient;
+use sdkms::api_model::*;
+use simple_hyper_client::HttpsConnector;
+use simple_hyper_client::blocking::Client as HttpClient;
 use uuid::Uuid;
 
-pub(super) async fn unwrap_key(
+/// Build a synchronous `SdkmsClient`.
+fn build_client(
     endpoint: &str,
     cert_pem: &str,
     key_pem: &str,
     app_uuid: &str,
-    key_uuid: Uuid,
-) -> Result<Vec<u8>> {
-    // Cert chain + private key in one PEM blob become the reqwest TLS client
-    // identity. DSM authenticates the mTLS handshake.
-    let mut identity_pem = String::with_capacity(cert_pem.len() + key_pem.len() + 1);
-    identity_pem.push_str(cert_pem.trim_end());
-    identity_pem.push('\n');
-    identity_pem.push_str(key_pem);
-
-    let identity = reqwest::Identity::from_pem(identity_pem.as_bytes())
+) -> Result<SdkmsClient> {
+    let app_uuid = Uuid::parse_str(app_uuid)
+        .with_context(|| format!("DSM app id is not a valid UUID: {app_uuid}"))?;
+    let identity = native_tls::Identity::from_pkcs8(cert_pem.as_bytes(), key_pem.as_bytes())
         .context("build TLS identity from cert and key failed")?;
-
-    let http = Client::builder()
-        .use_rustls_tls()
+    let tls = native_tls::TlsConnector::builder()
         .identity(identity)
         .build()
-        .context("build mTLS client failed")?;
+        .context("build TLS connector failed")?;
 
-    let token = authenticate(&http, endpoint, app_uuid).await?;
-    export_sobject(&http, endpoint, &token, key_uuid).await
+    SdkmsClient::builder()
+        .with_api_endpoint(endpoint)
+        .with_http_client(HttpClient::with_connector(HttpsConnector::new(tls.into())))
+        .build()
+        .context("build DSM client failed")?
+        .authenticate_with_cert(Some(&app_uuid))
+        .context("DSM authentication with the workload certificate failed")
 }
 
-async fn authenticate(http: &Client, endpoint: &str, app_uuid: &str) -> Result<String> {
-    let url = format!("{endpoint}/sys/v1/session/auth");
-    let basic = base64::engine::general_purpose::STANDARD.encode(format!("{app_uuid}:"));
-
-    let resp = http
-        .post(&url)
-        .header(reqwest::header::AUTHORIZATION, format!("Basic {basic}"))
-        .send()
-        .await
-        .context("DSM auth POST failed")?;
-
-    let status = resp.status();
-    if !status.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        bail!("DSM auth returned {status}: {body}");
-    }
-
-    #[derive(Deserialize)]
-    struct AuthResp {
-        access_token: String,
-    }
-
-    let auth: AuthResp = resp
-        .json()
-        .await
-        .context("DSM auth response was not valid JSON")?;
-    Ok(auth.access_token)
-}
-
-async fn export_sobject(
-    http: &Client,
-    endpoint: &str,
-    token: &str,
-    kek_uuid: Uuid,
+/// Export a key by UUID and return its raw value.
+pub(super) async fn unwrap_key(
+    endpoint: String,
+    cert_pem: String,
+    key_pem: String,
+    app_uuid: String,
+    key_uuid: Uuid,
 ) -> Result<Vec<u8>> {
-    let url = format!("{endpoint}/crypto/v1/keys/export");
+    tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+        let client = build_client(&endpoint, &cert_pem, &key_pem, &app_uuid)?;
+        client
+            .export_sobject(&SobjectDescriptor::Kid(key_uuid))
+            .context("DSM export_sobject")?
+            .value
+            .map(Vec::from)
+            .context("DSM export returned no key material")
+    })
+    .await
+    .context("DSM export operation panicked")?
+}
 
-    #[derive(Serialize)]
-    struct ExportReq {
-        kid: String,
-    }
+/// The wrapped DEK and the GCM parameters DSM needs to unwrap it.
+pub(super) struct WrappedKey {
+    pub cipher: Vec<u8>,
+    pub iv: Vec<u8>,
+    pub tag: Vec<u8>,
+}
 
-    #[derive(Deserialize)]
-    struct ExportResp {
-        value: String,
-    }
-
-    let resp = http
-        .post(&url)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"))
-        .json(&ExportReq {
-            kid: kek_uuid.to_string(),
-        })
-        .send()
-        .await
-        .context("DSM export POST failed")?;
-
-    let status = resp.status();
-    if !status.is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        bail!("DSM export returned {status}: {body}");
-    }
-
-    let body: ExportResp = resp
-        .json()
-        .await
-        .context("DSM export response was not valid JSON")?;
-
-    base64::engine::general_purpose::STANDARD
-        .decode(body.value.as_bytes())
-        .context("DSM export 'value' was not valid base64")
+/// Decrypt a DEK with the given KEK in DSM and return the plaintext.
+pub(super) async fn decrypt_key(
+    endpoint: String,
+    cert_pem: String,
+    key_pem: String,
+    app_uuid: String,
+    kek_uuid: Uuid,
+    wrapped_key: WrappedKey,
+) -> Result<Vec<u8>> {
+    tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+        let client = build_client(&endpoint, &cert_pem, &key_pem, &app_uuid)?;
+        let resp = client
+            .decrypt(&DecryptRequest {
+                key: Some(SobjectDescriptor::Kid(kek_uuid)),
+                alg: Some(Algorithm::Aes),
+                mode: Some(CryptMode::Symmetric(CipherMode::Gcm)),
+                cipher: wrapped_key.cipher.into(),
+                iv: Some(wrapped_key.iv.into()),
+                ad: None,
+                tag: Some(wrapped_key.tag.into()),
+            })
+            .context("DSM decrypt")?;
+        Ok(resp.plain.into())
+    })
+    .await
+    .context("DSM decrypt operation panicked")?
 }

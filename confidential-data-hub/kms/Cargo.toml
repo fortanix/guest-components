@@ -20,18 +20,21 @@ kbs_protocol = { path = "../../attestation-agent/kbs_protocol", default-features
     "aa_ttrpc",
     "openssl",
 ], optional = true }
+native-tls = { version = "0.2", optional = true }
 openssl = { workspace = true, optional = true }
 prost = { workspace = true, optional = true }
 protos = { path = "../../protos", default-features = false, optional = true }
 rand = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 resource_uri = { path = "../../attestation-agent/deps/resource_uri" }
+sdkms = { version = "0.5", optional = true }
 sha2 = { workspace = true, optional = true }
+simple-hyper-client = { version = "0.1", features = ["native-tls"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["fs"] }
+tokio = { workspace = true, features = ["fs", "rt"] }
 toml.workspace = true
 tonic = { workspace = true, optional = true }
 tracing.workspace = true
@@ -68,8 +71,9 @@ aws = ["aws-sdk-kms", "aws-sdk-secretsmanager"]
 kbs = ["kbs_protocol"]
 ccm_kbc = [
     "uuid",
-    "reqwest/rustls",
-    "reqwest/json",
+    "dep:sdkms",
+    "dep:native-tls",
+    "dep:simple-hyper-client",
     "ttrpc/async",
     "protos",
     "protos/ttrpc",
