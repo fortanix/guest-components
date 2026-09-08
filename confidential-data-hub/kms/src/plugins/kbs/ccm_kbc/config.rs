@@ -57,3 +57,33 @@ impl CcmKbcConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    // serial: env::set_var/remove_var race across tests running in parallel
+    // otherwise.
+
+    #[test]
+    #[serial]
+    fn endpoint_from_env_has_trailing_slash_trimmed() {
+        unsafe { env::set_var(ENV_ENDPOINT, "https://dsm.example.com/") };
+        let cfg = CcmKbcConfig::from_env_or_cmdline().unwrap();
+        assert_eq!(cfg.dsm_endpoint.as_deref(), Some("https://dsm.example.com"));
+        unsafe { env::remove_var(ENV_ENDPOINT) };
+    }
+
+    #[test]
+    #[serial]
+    fn app_id_from_env_is_passed_through() {
+        unsafe { env::set_var(ENV_APP_ID, "d97dec60-88ee-44cb-b298-19ecc46c45b5") };
+        let cfg = CcmKbcConfig::from_env_or_cmdline().unwrap();
+        assert_eq!(
+            cfg.dsm_app_id.as_deref(),
+            Some("d97dec60-88ee-44cb-b298-19ecc46c45b5")
+        );
+        unsafe { env::remove_var(ENV_APP_ID) };
+    }
+}

@@ -132,3 +132,63 @@ impl CcmAsTokenGetter {
         .context("ccm_as: spawn_blocking join")?
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::cert_is_currently_valid;
+
+    // Self-signed, CN=ccm_as-test. Generated once for this test; not_before/
+    // not_after are baked into the cert so it doesn't depend on wall-clock
+    // time at generation, only at comparison.
+    const VALID_CERT: &str = "-----BEGIN CERTIFICATE-----
+MIICuDCCAaCgAwIBAgIUEUdXuSfxBbbrB29OmESJOXWw7mQwDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAwwLY2NtX2FzLXRlc3QwHhcNMjYwOTA2MTgwMzM4WhcNMzYw
+OTA0MTgwMzM4WjAWMRQwEgYDVQQDDAtjY21fYXMtdGVzdDCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAMRTQ6sRp3W125lHn+f/oTael9+YtNdbURuYiTkm
+cMfWjYIIDgwdR1SCtYaJxhI7z8/nyb7+/KY6vla9hagCz3J06O/ebr7FhGQqxpk9
+epyhuYAYjIpoz+R8AAU0O2SnruClSahfHncLp7WyxMRg9tWiQJP20dpGmxMMVgiM
+IdgiE6FjLbleagDfiiLLz08xcdcOC/jCF2JYdIUF8+vUajKmjjRtSy7bdPD83+/Q
+nhijENnGq49gaPyfn6lxUbkFUnKM9ByW354TPfG3D7ImaRCu9ONiU2c84/WKWkpC
+FHtx3ri4moltfnXYX3AInDumEQ3WcddKfOMABxplIQbmn1UCAwEAATANBgkqhkiG
+9w0BAQsFAAOCAQEABTnffpswY1VB46Ykly1/KAUVu/zcU8B5/JVxysRxl0MdBqeE
+bHNimEHGeTeo+iQKr5dKsV9Eihs8rXqafuaThXBTNMiqqFaHRwNuAn3ey/96pzex
+MkmLTgIoF18alo9p4ysOpiHYXRQw+r7XHu+EJetSEtFWhvBWPlh3TBrfZSBvUQjx
+r1Vi/PvAUiTCvh1uqnIvmV57AdhrU0lCuqW+ZG43oTpT6UGxyVH3luPMtQLr0lXw
+G1aRjT0Gp+flSjPRR6tgXZ92MhNU9F89E0MYBf+FGZB7V/hAQ7y9MJkE228EGuJX
+fl1gqt2iQ9eHzcbEDISrEejTfqg5TvVh1epaww==
+-----END CERTIFICATE-----";
+
+    // Same subject, but not_before/not_after are both in the past.
+    const EXPIRED_CERT: &str = "-----BEGIN CERTIFICATE-----
+MIICuDCCAaCgAwIBAgIUeiTxg1V31/TkVtVXptGmPKFbCvIwDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAwwLY2NtX2FzLXRlc3QwHhcNMjQwOTA3MTgwMzM4WhcNMjUw
+OTA3MTgwMzM4WjAWMRQwEgYDVQQDDAtjY21fYXMtdGVzdDCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAL2NuTI56lkMhPZZ+opzKIpBCb3T76lirVQhJyZR
+f3trOkxTaxzDf3Rl7++U3qgVOcBuqqsbgix90zaZWoJs/L2NlcPuPz2WDSENkhIJ
+DjoAXq+LQkQ8ulMzeNn+r7iqwMk4GgH017C/VJO4DRjavYcujfe0X0LRHblDEibf
+kYeygB+qicWa8eYPFqduvPcWxJYa5OQIqZGxxoi1UtgXu7enS4bBHkyA7saKSr4i
+mSmD+ITDGUduNnCzEd8gb79ycrgYmeWARuG1JoMg97NDFkmGPyRCgy72QEzP9KO6
+asmc69edRpcybKpyJU+j1dBiJpmnSAJ3Opm/tLrNYo2gkwsCAwEAATANBgkqhkiG
+9w0BAQsFAAOCAQEAVVhbA3h6Zk3/SlcNYdZFv4+Ur1bwoyLO+DRzG8eGt/ngaV3c
+e3jpyYxblPtIQASBQ9u0MAOGEFvWtkuLIZPcJBy0HkoIb0iVo65aH1T8/mqQpi2g
+F3PcZ54/xPvZipMGswBK2ZiFGxuK1sNSa0l4gDIOSEIInf2q+QdV8Gk75bSust7E
+hnZ7qHFN8uXhtY8T3F2vDwuuU6FuHDKgWkcWKRenFSiGDjcRm/QqmDJvRPI05Ggp
+5mTSwamJ7X0rOsTqKg6kfHSdUG2dGQj1bDgbiCwwZkaTEFjYHOaVqYcYikcHDDtA
+Wn/fTpmWfQ26lDwVArEIBGVmloEEENm8Biv0gg==
+-----END CERTIFICATE-----";
+
+    #[test]
+    fn currently_valid_cert_is_valid() {
+        assert!(cert_is_currently_valid(VALID_CERT));
+    }
+
+    #[test]
+    fn expired_cert_is_not_valid() {
+        assert!(!cert_is_currently_valid(EXPIRED_CERT));
+    }
+
+    #[test]
+    fn unparseable_pem_is_treated_as_not_valid() {
+        assert!(!cert_is_currently_valid("not a certificate"));
+    }
+}
