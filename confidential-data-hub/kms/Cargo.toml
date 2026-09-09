@@ -73,6 +73,7 @@ ccm_kbc = [
     "uuid",
     "dep:sdkms",
     "dep:native-tls",
+    "dep:openssl",
     "dep:simple-hyper-client",
     "ttrpc/async",
     "protos",
