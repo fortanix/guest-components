@@ -7,6 +7,7 @@
 // either export a key by UUID or have DSM decrypt a wrapped key.
 
 use anyhow::{Context, Result};
+use openssl::pkey::PKey;
 use sdkms::SdkmsClient;
 use sdkms::api_model::*;
 use simple_hyper_client::HttpsConnector;
@@ -22,7 +23,12 @@ fn build_client(
 ) -> Result<SdkmsClient> {
     let app_uuid = Uuid::parse_str(app_uuid)
         .with_context(|| format!("DSM app id is not a valid UUID: {app_uuid}"))?;
-    let identity = native_tls::Identity::from_pkcs8(cert_pem.as_bytes(), key_pem.as_bytes())
+    let key_pkcs8 = PKey::private_key_from_pem(key_pem.as_bytes())
+        .context("parse workload private key")?
+        .private_key_to_pem_pkcs8()
+        .context("convert workload private key to PKCS#8")?;
+
+    let identity = native_tls::Identity::from_pkcs8(cert_pem.as_bytes(), &key_pkcs8)
         .context("build TLS identity from cert and key failed")?;
     let tls = native_tls::TlsConnector::builder()
         .identity(identity)
