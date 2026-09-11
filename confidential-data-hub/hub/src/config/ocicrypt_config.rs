@@ -100,6 +100,7 @@ mod tests {
                 url: "".to_string(),
                 kbs_cert: None,
             },
+            kbc_configs: Default::default(),
             credentials: vec![],
             image: ImageConfig::default(),
             socket: socket.to_string(),
