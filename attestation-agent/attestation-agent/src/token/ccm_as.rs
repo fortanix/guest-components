@@ -9,7 +9,7 @@ use client::{Attest, BaremetalSevSnp, BaremetalTdx, NodeAgentClient, certificate
 use kbs_types::Tee;
 use serde::Serialize;
 use std::sync::LazyLock;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
 use x509_cert::Certificate;
@@ -26,6 +26,12 @@ struct Message {
 // Reused while still valid per the cert's own dates (see cert_is_currently_valid); no separate TTL.
 static CACHE: LazyLock<Mutex<Option<Message>>> = LazyLock::new(|| Mutex::new(None));
 
+// Grace window on not_before to tolerate clock skew between this guest and CCM: without it,
+// a freshly issued cert can read as "not valid yet" and we re-attest on every key request.
+const NOT_BEFORE_GRACE: Duration = Duration::from_secs(5 * 60);
+// Margin before not_after so we proactively refresh instead of racing expiry.
+const NOT_AFTER_MARGIN: Duration = Duration::from_secs(60);
+
 // Make sure the cert is currently valid. If it can't be parsed, treat it as invalid so
 // it gets refreshed.
 fn cert_is_currently_valid(cert_pem: &str) -> bool {
@@ -33,7 +39,17 @@ fn cert_is_currently_valid(cert_pem: &str) -> bool {
         Ok(cert) => {
             let now = SystemTime::now();
             let validity = cert.tbs_certificate.validity;
-            now >= validity.not_before.to_system_time() && now < validity.not_after.to_system_time()
+            let not_before = validity
+                .not_before
+                .to_system_time()
+                .checked_sub(NOT_BEFORE_GRACE)
+                .unwrap_or(SystemTime::UNIX_EPOCH);
+            let not_after = validity
+                .not_after
+                .to_system_time()
+                .checked_sub(NOT_AFTER_MARGIN)
+                .unwrap_or(SystemTime::UNIX_EPOCH);
+            now >= not_before && now < not_after
         }
         Err(e) => {
             warn!(
