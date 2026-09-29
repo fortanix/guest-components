@@ -186,6 +186,8 @@ mod tests {
     #[case("config.example.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -229,6 +231,8 @@ M9QaC1mzQ/OStg==
     #[case("config.example.json",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -273,6 +277,8 @@ M9QaC1mzQ/OStg==
     "test/config1.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -295,6 +301,8 @@ M9QaC1mzQ/OStg==
     "test/config2.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -315,6 +323,8 @@ M9QaC1mzQ/OStg==
     "test/config7.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -335,6 +345,8 @@ M9QaC1mzQ/OStg==
     "test/config4.toml", 
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -350,6 +362,8 @@ M9QaC1mzQ/OStg==
     "test/config5.toml", 
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -365,6 +379,8 @@ M9QaC1mzQ/OStg==
         "test/config6.toml", 
         Config {
             token_configs: TokenConfigs {
+                #[cfg(feature = "ccm_as")]
+                ccm_as: None,
                 #[cfg(feature = "coco_as")]
                 coco_as: None,
                 #[cfg(feature = "kbs")]
