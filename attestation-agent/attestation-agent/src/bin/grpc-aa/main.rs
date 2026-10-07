@@ -129,7 +129,8 @@ rpc: grpc
 
     let attestation_socket = cli.attestation_sock.parse::<SocketAddr>()?;
 
-    let mut aa = AttestationAgent::new(config).context("start AA")?;
+    let mut aa = AttestationAgent::new_with_unmeasured_config(config, unmeasured_config)
+        .context("start AA")?;
 
     let mut initdata_digest = None;
     if let Some(initdata_toml_path) = cli.initdata_toml {

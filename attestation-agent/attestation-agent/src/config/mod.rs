@@ -8,7 +8,14 @@ use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Default)]
 pub struct UnmeasuredConfig {
-    pub app_config_id: Option<String>,
+    #[cfg(feature = "ccm_as")]
+    pub ccm_as: Option<UnmeasuredCcmAsConfig>,
+}
+
+#[cfg(feature = "ccm_as")]
+#[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+pub struct UnmeasuredCcmAsConfig {
+    pub appconfig_id: Option<String>,
 }
 
 /// Default PCR index used by AA. `17` is selected for its usage of dynamic root of trust for measurement.
@@ -373,5 +380,29 @@ M9QaC1mzQ/OStg==
     fn parse_configs(#[case] config: &str, #[case] expected: Config) {
         let _config = Config::try_from(config).expect("failed to parse config file");
         assert_eq!(_config, expected);
+    }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_ccm_as_config() {
+        let config: super::UnmeasuredConfig = toml::from_str(
+            r#"
+[ccm_as]
+appconfig_id = "0123456789abcdef"
+"#,
+        )
+        .expect("parse unmeasured ccm_as config");
+
+        let ccm_as = config.ccm_as.expect("ccm_as config is present");
+        assert_eq!(ccm_as.appconfig_id.as_deref(), Some("0123456789abcdef"));
+    }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_config_without_ccm_as() {
+        let config: super::UnmeasuredConfig =
+            toml::from_str("").expect("parse empty unmeasured config");
+
+        assert_eq!(config.ccm_as, None);
     }
 }
