@@ -6,6 +6,11 @@
 use anyhow::Result;
 use serde::Deserialize;
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+pub struct UnmeasuredConfig {
+    pub app_config_id: Option<String>,
+}
+
 /// Default PCR index used by AA. `17` is selected for its usage of dynamic root of trust for measurement.
 /// - [Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/)
 /// - [TCG TRUSTED BOOT CHAIN IN EDK II](https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html)
@@ -85,6 +90,20 @@ impl Config {
         };
         Ok((config, config_log))
     }
+}
+
+pub fn read_unmeasured_config(
+    config_path: Option<String>,
+) -> Result<(Option<UnmeasuredConfig>, String)> {
+    let Some(config_path) = config_path else {
+        return Ok((None, "No AA unmeasured config file specified.".to_string()));
+    };
+
+    let content = std::fs::read_to_string(&config_path)?;
+    let config = toml::from_str(&content)?;
+    let log = format!("Using AA unmeasured config file: {config_path}");
+
+    Ok((Some(config), log))
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
