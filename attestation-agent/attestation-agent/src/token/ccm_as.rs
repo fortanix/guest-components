@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::config::ccm_as::CcmAsConfig;
+use crate::config::{UnmeasuredCcmAsConfig, ccm_as::CcmAsConfig};
 use anyhow::{Context, Result, bail};
 use client::{Attest, BaremetalSevSnp, BaremetalTdx, NodeAgentClient, certificate::AppCert};
 use kbs_types::Tee;
@@ -50,10 +50,10 @@ pub struct CcmAsTokenGetter {
 }
 
 impl CcmAsTokenGetter {
-    pub fn new(config: &CcmAsConfig) -> Self {
+    pub fn new(config: &CcmAsConfig, unmeasured_config: Option<&UnmeasuredCcmAsConfig>) -> Self {
         Self {
             ccm_domain_names: config.ccm_domain_names.clone(),
-            ccm_appconfig_id: config.ccm_appconfig_id.clone(),
+            ccm_appconfig_id: unmeasured_config.and_then(|config| config.appconfig_id.clone()),
         }
     }
 
