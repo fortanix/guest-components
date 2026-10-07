@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::config::ccm_as::CcmAsConfig;
+use crate::config::{UnmeasuredCcmAsConfig, ccm_as::CcmAsConfig};
 use anyhow::{Context, Result, bail};
 use client::{Attest, BaremetalSevSnp, BaremetalTdx, NodeAgentClient, certificate::AppCert};
 use kbs_types::Tee;
@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use x509_cert::Certificate;
 use x509_cert::der::DecodePem;
 
@@ -50,10 +50,10 @@ pub struct CcmAsTokenGetter {
 }
 
 impl CcmAsTokenGetter {
-    pub fn new(config: &CcmAsConfig) -> Self {
+    pub fn new(config: &CcmAsConfig, unmeasured_config: Option<&UnmeasuredCcmAsConfig>) -> Self {
         Self {
             ccm_domain_names: config.ccm_domain_names.clone(),
-            ccm_appconfig_id: config.ccm_appconfig_id.clone(),
+            ccm_appconfig_id: unmeasured_config.and_then(|config| config.appconfig_id.clone()),
         }
     }
 
@@ -81,13 +81,11 @@ impl CcmAsTokenGetter {
 
     async fn attest_and_issue_cert(&self) -> Result<(String, String)> {
         let tee = attester::detect_tee_type();
-
+        debug!("ccm_appconfig_id: {:?}", &self.ccm_appconfig_id);
         let appconfig_id = self
             .ccm_appconfig_id
             .as_deref()
-            .map(|id| hex::decode(id.trim()))
-            .transpose()
-            .context("ccm_as: ccm_appconfig_id is not valid hex")?;
+            .map(|id| id.trim().to_owned().into_bytes());
 
         // `AppCert::request_app_cert_csr` in the `fortanix/attestation/client` crate reads the
         // workload cert's subject alt names from this env var rather than taking them as a parameter

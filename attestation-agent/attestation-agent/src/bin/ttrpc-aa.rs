@@ -4,7 +4,11 @@
 //
 
 use anyhow::*;
-use attestation_agent::{AttestationAPIs, AttestationAgent, config::Config, initdata::Initdata};
+use attestation_agent::{
+    AttestationAPIs, AttestationAgent,
+    config::{Config, read_unmeasured_config},
+    initdata::Initdata,
+};
 use base64::Engine;
 use clap::Parser;
 use const_format::concatcp;
@@ -60,6 +64,13 @@ struct Cli {
     #[arg(short, long)]
     config_file: Option<String>,
 
+    /// Unmeasured configuration file for Attestation Agent.
+    ///
+    /// Example:
+    /// `--unmeasured-config /run/unmeasured-cfg/aa.toml`
+    #[arg(short = 'u', long = "unmeasured-config")]
+    unmeasured_config_file: Option<String>,
+
     /// Initdata digest to be verified by AA. If initdata check failed, AA will failed to launch.
     /// The initdata should be base64 standard encoding.
     ///
@@ -99,6 +110,8 @@ pub async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let (config, config_log) = Config::from_file(cli.config_file)?;
+    let (unmeasured_config, unmeasured_config_log) =
+        read_unmeasured_config(cli.unmeasured_config_file)?;
 
     let env_filter = match std::env::var_os("RUST_LOG") {
         Some(_) => EnvFilter::try_from_default_env().context("RUST_LOG is present but invalid")?,
@@ -129,7 +142,9 @@ rpc: ttrpc
     info!("Welcome to Confidential Containers Attestation Agent (ttRPC version)!\n\n{version}");
 
     info!("{config_log}");
+    info!("{unmeasured_config_log}");
     debug!(config = ?config, "Using config");
+    debug!(unmeasured_config = ?unmeasured_config, "Using unmeasured config");
 
     if !Path::new(DEFAULT_UNIX_SOCKET_DIR).exists() {
         std::fs::create_dir_all(DEFAULT_UNIX_SOCKET_DIR).expect("Create unix socket dir failed");
@@ -138,7 +153,8 @@ rpc: ttrpc
     clean_previous_sock_file(&cli.attestation_sock)
         .context("clean previous attestation socket file")?;
 
-    let mut aa = AttestationAgent::new(config).context("start AA")?;
+    let mut aa = AttestationAgent::new_with_unmeasured_config(config, unmeasured_config)
+        .context("start AA")?;
 
     let mut initdata_digest = None;
     if let Some(initdata_toml_path) = cli.initdata_toml {
