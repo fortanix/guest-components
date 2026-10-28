@@ -11,7 +11,7 @@ use serde::Serialize;
 use std::sync::LazyLock;
 use std::time::SystemTime;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use x509_cert::Certificate;
 use x509_cert::der::DecodePem;
 
@@ -53,7 +53,7 @@ impl CcmAsTokenGetter {
     pub fn new(config: &CcmAsConfig, unmeasured_config: Option<&UnmeasuredCcmAsConfig>) -> Self {
         Self {
             ccm_domain_names: config.ccm_domain_names.clone(),
-            ccm_appconfig_id: unmeasured_config.and_then(|config| config.appconfig_id.clone()),
+            ccm_appconfig_id: unmeasured_config.and_then(|config| config.ccm_appconfig_id.clone()),
         }
     }
 
@@ -81,7 +81,6 @@ impl CcmAsTokenGetter {
 
     async fn attest_and_issue_cert(&self) -> Result<(String, String)> {
         let tee = attester::detect_tee_type();
-        debug!("ccm_appconfig_id: {:?}", &self.ccm_appconfig_id);
         let appconfig_id = self
             .ccm_appconfig_id
             .as_deref()
