@@ -15,7 +15,7 @@ pub struct UnmeasuredConfig {
 #[cfg(feature = "ccm_as")]
 #[derive(Clone, Debug, Deserialize, PartialEq, Default)]
 pub struct UnmeasuredCcmAsConfig {
-    pub appconfig_id: Option<String>,
+    pub ccm_appconfig_id: Option<String>,
 }
 
 /// Default PCR index used by AA. `17` is selected for its usage of dynamic root of trust for measurement.
@@ -342,7 +342,7 @@ M9QaC1mzQ/OStg==
         log: LogConfig { level: "warn".to_string() },
     })]
     #[case(
-    "test/config4.toml", 
+    "test/config4.toml",
     Config {
         token_configs: TokenConfigs {
             #[cfg(feature = "ccm_as")]
@@ -359,7 +359,7 @@ M9QaC1mzQ/OStg==
         log: LogConfig { level: "warn".to_string() },
     })]
     #[case(
-    "test/config5.toml", 
+    "test/config5.toml",
     Config {
         token_configs: TokenConfigs {
             #[cfg(feature = "ccm_as")]
@@ -376,7 +376,7 @@ M9QaC1mzQ/OStg==
         log: LogConfig::default(),
     })]
     #[case(
-        "test/config6.toml", 
+        "test/config6.toml",
         Config {
             token_configs: TokenConfigs {
                 #[cfg(feature = "ccm_as")]
@@ -404,13 +404,13 @@ M9QaC1mzQ/OStg==
         let config: super::UnmeasuredConfig = toml::from_str(
             r#"
 [ccm_as]
-appconfig_id = "0123456789abcdef"
+ccm_appconfig_id = "0123456789abcdef"
 "#,
         )
         .expect("parse unmeasured ccm_as config");
 
         let ccm_as = config.ccm_as.expect("ccm_as config is present");
-        assert_eq!(ccm_as.appconfig_id.as_deref(), Some("0123456789abcdef"));
+        assert_eq!(ccm_as.ccm_appconfig_id.as_deref(), Some("0123456789abcdef"));
     }
 
     #[cfg(feature = "ccm_as")]
