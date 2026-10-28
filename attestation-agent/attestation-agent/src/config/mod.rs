@@ -421,4 +421,13 @@ ccm_appconfig_id = "0123456789abcdef"
 
         assert_eq!(config.ccm_as, None);
     }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_ccm_as_config_without_ccm_appconfig_id() {
+        let config: super::UnmeasuredConfig =
+            toml::from_str("[ccm_as]").expect("ccm_as config is present with no ccm_appconfig_id");
+
+        assert_eq!(config.ccm_as.unwrap().ccm_appconfig_id, None);
+    }
 }
