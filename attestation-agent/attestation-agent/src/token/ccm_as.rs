@@ -89,6 +89,9 @@ impl CcmAsTokenGetter {
         // `AppCert::request_app_cert_csr` in the `fortanix/attestation/client` crate reads the
         // workload cert's subject alt names from this env var rather than taking them as a parameter
         unsafe { std::env::set_var("APP_CERT_ALT_NAMES", self.ccm_domain_names.join(",")) };
+        if let Some(app_config_id_str) = self.ccm_appconfig_id.as_ref() {
+            unsafe { std::env::set_var("APPCONFIG_ID", app_config_id_str) };
+        }
 
         tokio::task::spawn_blocking(move || -> Result<(String, String)> {
             let mut app_cert = AppCert::init().context("ccm_as: AppCert::init")?;
