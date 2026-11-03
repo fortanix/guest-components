@@ -7,6 +7,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct UnmeasuredConfig {
     #[cfg(feature = "ccm_as")]
     pub ccm_as: Option<UnmeasuredCcmAsConfig>,
@@ -14,6 +15,7 @@ pub struct UnmeasuredConfig {
 
 #[cfg(feature = "ccm_as")]
 #[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct UnmeasuredCcmAsConfig {
     pub ccm_appconfig_id: Option<String>,
 }
