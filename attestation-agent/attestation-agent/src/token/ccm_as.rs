@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::config::ccm_as::CcmAsConfig;
+use crate::config::{UnmeasuredCcmAsConfig, ccm_as::CcmAsConfig};
 use anyhow::{Context, Result, bail};
 use client::{Attest, BaremetalSevSnp, BaremetalTdx, NodeAgentClient, certificate::AppCert};
 use kbs_types::Tee;
@@ -50,10 +50,10 @@ pub struct CcmAsTokenGetter {
 }
 
 impl CcmAsTokenGetter {
-    pub fn new(config: &CcmAsConfig) -> Self {
+    pub fn new(config: &CcmAsConfig, unmeasured_config: Option<&UnmeasuredCcmAsConfig>) -> Self {
         Self {
             ccm_domain_names: config.ccm_domain_names.clone(),
-            ccm_appconfig_id: config.ccm_appconfig_id.clone(),
+            ccm_appconfig_id: unmeasured_config.and_then(|config| config.ccm_appconfig_id.clone()),
         }
     }
 
@@ -81,17 +81,17 @@ impl CcmAsTokenGetter {
 
     async fn attest_and_issue_cert(&self) -> Result<(String, String)> {
         let tee = attester::detect_tee_type();
-
         let appconfig_id = self
             .ccm_appconfig_id
             .as_deref()
-            .map(|id| hex::decode(id.trim()))
-            .transpose()
-            .context("ccm_as: ccm_appconfig_id is not valid hex")?;
+            .map(|id| id.trim().to_owned().into_bytes());
 
         // `AppCert::request_app_cert_csr` in the `fortanix/attestation/client` crate reads the
         // workload cert's subject alt names from this env var rather than taking them as a parameter
         unsafe { std::env::set_var("APP_CERT_ALT_NAMES", self.ccm_domain_names.join(",")) };
+        if let Some(app_config_id_str) = self.ccm_appconfig_id.as_ref() {
+            unsafe { std::env::set_var("APPCONFIG_ID", app_config_id_str) };
+        }
 
         tokio::task::spawn_blocking(move || -> Result<(String, String)> {
             let mut app_cert = AppCert::init().context("ccm_as: AppCert::init")?;
