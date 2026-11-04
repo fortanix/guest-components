@@ -23,7 +23,10 @@ use eventlog::EventLog;
 use token::*;
 use tracing::{debug, info};
 
-use crate::{config::Config, eventlog::Event};
+use crate::{
+    config::{Config, UnmeasuredConfig},
+    eventlog::Event,
+};
 
 pub enum RuntimeMeasurement {
     /// The runtime measurement is extended successfully.
@@ -101,6 +104,8 @@ pub trait AttestationAPIs {
 pub struct AttestationAgent {
     primary_tee: Tee,
     config: RwLock<Config>,
+    #[cfg(feature = "ccm_as")]
+    unmeasured_config: Option<UnmeasuredConfig>,
     eventlog: Option<Mutex<EventLog>>,
     initdata: Option<String>,
     primary_attester: Arc<BoxedAttester>,
@@ -125,6 +130,16 @@ impl AttestationAgent {
 
     /// Create a new instance of [AttestationAgent].
     pub fn new(config: Config) -> Result<Self> {
+        Self::new_with_unmeasured_config(config, None)
+    }
+
+    pub fn new_with_unmeasured_config(
+        config: Config,
+        unmeasured_config: Option<UnmeasuredConfig>,
+    ) -> Result<Self> {
+        #[cfg(not(feature = "ccm_as"))]
+        let _ = unmeasured_config;
+
         let config = RwLock::new(config);
 
         let primary_tee = detect_tee_type();
@@ -138,6 +153,8 @@ impl AttestationAgent {
         Ok(AttestationAgent {
             primary_tee,
             config,
+            #[cfg(feature = "ccm_as")]
+            unmeasured_config,
             eventlog: None,
             initdata: None,
             additional_attesters,
@@ -202,6 +219,9 @@ impl AttestationAPIs for AttestationAgent {
                         .ok_or(anyhow::anyhow!(
                             "ccm_as token config not configured in config file"
                         ))?,
+                    self.unmeasured_config
+                        .as_ref()
+                        .and_then(|config| config.ccm_as.as_ref()),
                 )
                 .get_token()
                 .await
