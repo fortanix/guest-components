@@ -6,6 +6,7 @@
 use crate::config::{UnmeasuredCcmAsConfig, ccm_as::CcmAsConfig};
 use anyhow::{Context, Result, bail};
 use client::{Attest, BaremetalSevSnp, BaremetalTdx, NodeAgentClient, certificate::AppCert};
+use hex::FromHex;
 use kbs_types::Tee;
 use serde::Serialize;
 use std::sync::LazyLock;
@@ -89,8 +90,14 @@ impl CcmAsTokenGetter {
         // `AppCert::request_app_cert_csr` in the `fortanix/attestation/client` crate reads the
         // workload cert's subject alt names from this env var rather than taking them as a parameter
         unsafe { std::env::set_var("APP_CERT_ALT_NAMES", self.ccm_domain_names.join(",")) };
-        if let Some(app_config_id_str) = self.ccm_appconfig_id.as_ref() {
-            unsafe { std::env::set_var("APPCONFIG_ID", app_config_id_str) };
+        if let Some(app_configid_str) = self.ccm_appconfig_id.as_ref() {
+            if <[u8; 32]>::from_hex(app_configid_str).is_err() {
+                bail!(
+                    "ccm_as: invalid SHA-256 ccm_appconfig_id: {}",
+                    app_configid_str
+                );
+            }
+            unsafe { std::env::set_var("APPCONFIG_ID", app_configid_str) };
         }
 
         tokio::task::spawn_blocking(move || -> Result<(String, String)> {
