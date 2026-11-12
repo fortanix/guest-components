@@ -57,7 +57,7 @@ struct Cli {
     /// Unmeasured configuration file for Attestation Agent.
     ///
     /// Example:
-    /// `--unmeasured-config /run/unmeasured-cfg/aa.toml`
+    /// `--unmeasured-config /run/unmeasured-cfg/initdata/aa.toml`
     #[arg(short = 'u', long = "unmeasured-config")]
     unmeasured_config_file: Option<String>,
 
