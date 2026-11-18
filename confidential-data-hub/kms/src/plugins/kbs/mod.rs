@@ -8,6 +8,9 @@
 #[cfg(feature = "kbs")]
 mod cc_kbc;
 
+#[cfg(feature = "ccm_kbc")]
+mod ccm_kbc;
+
 mod offline_fs;
 
 use std::{env, sync::Arc};
@@ -17,11 +20,24 @@ use attestation_agent::config::aa_kbc_params::AaKbcParams;
 pub use resource_uri::ResourceUri;
 use tokio::sync::Mutex;
 
-use crate::{Annotations, Error, Getter, Result};
+use crate::{Annotations, Decrypter, Error, Getter, Result};
 
 #[async_trait]
 pub trait Kbc: Send + Sync {
     async fn get_resource(&mut self, _rid: ResourceUri) -> Result<Vec<u8>>;
+
+    /// Unwrap a wrapped key inside the KMS, so the KEK never reaches the guest.
+    /// Defaulted for KBCs that release the KEK through [`Kbc::get_resource`].
+    async fn decrypt_with_kek(
+        &mut self,
+        _rid: ResourceUri,
+        _ciphertext: &[u8],
+        _annotations: &Annotations,
+    ) -> Result<Vec<u8>> {
+        Err(Error::KbsClientError(
+            "this KBC cannot decrypt inside the KMS".into(),
+        ))
+    }
 }
 
 /// A fake KbcClient to carry the [`Getter`] semantics. The real `new()`
@@ -29,6 +45,8 @@ pub trait Kbc: Send + Sync {
 pub enum KbcClient {
     #[cfg(feature = "kbs")]
     Cc(Arc<Mutex<cc_kbc::CcKbc>>),
+    #[cfg(feature = "ccm_kbc")]
+    Ccm(Arc<Mutex<ccm_kbc::CcmKbc>>),
     OfflineFs(Arc<Mutex<offline_fs::OfflineFsKbc>>),
 }
 
@@ -46,12 +64,19 @@ impl KbcClient {
                     cc_kbc::CcKbc::new(&params.uri, &aa_socket).await?,
                 )))
             }
+            #[cfg(feature = "ccm_kbc")]
+            "ccm_kbc" => {
+                let aa_socket = env::var("AA_SOCKET").expect("must be initialized");
+                Self::Ccm(Arc::new(Mutex::new(
+                    ccm_kbc::CcmKbc::new(&params.uri, &aa_socket).await?,
+                )))
+            }
             "offline_fs_kbc" => {
                 Self::OfflineFs(Arc::new(Mutex::new(offline_fs::OfflineFsKbc::new().await?)))
             }
             others => {
                 return Err(Error::KbsClientError(format!(
-                    "unknown kbc name {others}, only support `cc_kbc`(feature `kbs`) and `offline_fs_kbc`."
+                    "unknown kbc name {others}, only support `cc_kbc`(feature `kbs`), `ccm_kbc` (feature `ccm_kbc`) and `offline_fs_kbc`."
                 )));
             }
         };
@@ -69,7 +94,48 @@ impl Getter for KbcClient {
         match self {
             #[cfg(feature = "kbs")]
             Self::Cc(c) => c.lock().await.get_resource(resource_uri).await,
+            #[cfg(feature = "ccm_kbc")]
+            Self::Ccm(c) => c.lock().await.get_resource(resource_uri).await,
             Self::OfflineFs(c) => c.lock().await.get_resource(resource_uri).await,
+        }
+    }
+}
+
+/// Carries the [`Decrypter`] semantics for a KBC whose KMS can unwrap a key
+/// without releasing the KEK. Reached only when an annotation names a provider
+/// other than `kbs`; a `kbs` annotation still takes [`Getter::get_secret`].
+#[async_trait]
+impl Decrypter for KbcClient {
+    async fn decrypt(
+        &mut self,
+        ciphertext: &[u8],
+        key_id: &str,
+        annotations: &Annotations,
+    ) -> Result<Vec<u8>> {
+        let resource_uri = ResourceUri::try_from(key_id)
+            .map_err(|_| Error::KbsClientError(format!("illegal kbs resource uri: {key_id}")))?;
+
+        match self {
+            #[cfg(feature = "kbs")]
+            Self::Cc(c) => {
+                c.lock()
+                    .await
+                    .decrypt_with_kek(resource_uri, ciphertext, annotations)
+                    .await
+            }
+            #[cfg(feature = "ccm_kbc")]
+            Self::Ccm(c) => {
+                c.lock()
+                    .await
+                    .decrypt_with_kek(resource_uri, ciphertext, annotations)
+                    .await
+            }
+            Self::OfflineFs(c) => {
+                c.lock()
+                    .await
+                    .decrypt_with_kek(resource_uri, ciphertext, annotations)
+                    .await
+            }
         }
     }
 }

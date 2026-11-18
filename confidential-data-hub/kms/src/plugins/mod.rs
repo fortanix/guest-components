@@ -28,6 +28,10 @@ pub enum DecryptorProvider {
     #[cfg(feature = "aws")]
     #[strum(ascii_case_insensitive)]
     Aws,
+
+    #[cfg(feature = "ccm_kbc")]
+    #[strum(ascii_case_insensitive)]
+    Dsm,
 }
 
 /// Create a new [`Decrypter`] by given provider name and [`ProviderSettings`]
@@ -47,6 +51,9 @@ pub async fn new_decryptor(
         DecryptorProvider::Aws => Ok(Box::new(
             aws::AwsKmsClient::from_provider_settings(&_provider_settings).await?,
         ) as Box<dyn Decrypter>),
+
+        #[cfg(feature = "ccm_kbc")]
+        DecryptorProvider::Dsm => Ok(Box::new(kbs::KbcClient::new().await?) as Box<dyn Decrypter>),
     }
 }
 

@@ -6,6 +6,20 @@
 use anyhow::Result;
 use serde::Deserialize;
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct UnmeasuredConfig {
+    #[cfg(feature = "ccm_as")]
+    pub ccm_as: Option<UnmeasuredCcmAsConfig>,
+}
+
+#[cfg(feature = "ccm_as")]
+#[derive(Clone, Debug, Deserialize, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct UnmeasuredCcmAsConfig {
+    pub ccm_appconfig_id: Option<String>,
+}
+
 /// Default PCR index used by AA. `17` is selected for its usage of dynamic root of trust for measurement.
 /// - [Linux TPM PCR Registry](https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/)
 /// - [TCG TRUSTED BOOT CHAIN IN EDK II](https://tianocore-docs.github.io/edk2-TrustedBootChain/release-1.00/3_TCG_Trusted_Boot_Chain_in_EDKII.html)
@@ -18,6 +32,9 @@ pub mod coco_as;
 
 #[cfg(feature = "kbs")]
 pub mod kbs;
+
+#[cfg(feature = "ccm_as")]
+pub mod ccm_as;
 
 pub const DEFAULT_AA_CONFIG_PATH: &str = "/etc/attestation-agent.conf";
 
@@ -84,6 +101,20 @@ impl Config {
     }
 }
 
+pub fn read_unmeasured_config(
+    config_path: Option<String>,
+) -> Result<(Option<UnmeasuredConfig>, String)> {
+    let Some(config_path) = config_path else {
+        return Ok((None, "No AA unmeasured config file specified.".to_string()));
+    };
+
+    let content = std::fs::read_to_string(&config_path)?;
+    let config = toml::from_str(&content)?;
+    let log = format!("Using AA unmeasured config file: {config_path}");
+
+    Ok((Some(config), log))
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct EventlogConfig {
     /// PCR Register to extend INIT entry
@@ -111,6 +142,10 @@ pub struct TokenConfigs {
     /// This config item is used when `kbs` feature is enabled.
     #[cfg(feature = "kbs")]
     pub kbs: Option<kbs::KbsConfig>,
+
+    /// This config item is used when `ccm_as` feature is enabled.
+    #[cfg(feature = "ccm_as")]
+    pub ccm_as: Option<ccm_as::CcmAsConfig>,
 }
 
 impl TokenConfigs {
@@ -123,6 +158,8 @@ impl TokenConfigs {
             coco_as: None,
             #[cfg(feature = "kbs")]
             kbs,
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
         }
     }
 }
@@ -151,6 +188,8 @@ mod tests {
     #[case("config.example.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -194,6 +233,8 @@ M9QaC1mzQ/OStg==
     #[case("config.example.json",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -238,6 +279,8 @@ M9QaC1mzQ/OStg==
     "test/config1.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: Some(crate::config::coco_as::CoCoASConfig {
                 url: "http://127.0.0.1:8000".to_string(),
@@ -260,6 +303,8 @@ M9QaC1mzQ/OStg==
     "test/config2.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -280,6 +325,8 @@ M9QaC1mzQ/OStg==
     "test/config7.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -297,9 +344,11 @@ M9QaC1mzQ/OStg==
         log: LogConfig { level: "warn".to_string() },
     })]
     #[case(
-    "test/config4.toml", 
+    "test/config4.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -312,9 +361,11 @@ M9QaC1mzQ/OStg==
         log: LogConfig { level: "warn".to_string() },
     })]
     #[case(
-    "test/config5.toml", 
+    "test/config5.toml",
     Config {
         token_configs: TokenConfigs {
+            #[cfg(feature = "ccm_as")]
+            ccm_as: None,
             #[cfg(feature = "coco_as")]
             coco_as: None,
             #[cfg(feature = "kbs")]
@@ -327,9 +378,11 @@ M9QaC1mzQ/OStg==
         log: LogConfig::default(),
     })]
     #[case(
-        "test/config6.toml", 
+        "test/config6.toml",
         Config {
             token_configs: TokenConfigs {
+                #[cfg(feature = "ccm_as")]
+                ccm_as: None,
                 #[cfg(feature = "coco_as")]
                 coco_as: None,
                 #[cfg(feature = "kbs")]
@@ -341,8 +394,42 @@ M9QaC1mzQ/OStg==
             },
             log: LogConfig::default(),
         })]
+    // TODO: Add test for "ccm_as"
     fn parse_configs(#[case] config: &str, #[case] expected: Config) {
         let _config = Config::try_from(config).expect("failed to parse config file");
         assert_eq!(_config, expected);
+    }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_ccm_as_config() {
+        let config: super::UnmeasuredConfig = toml::from_str(
+            r#"
+[ccm_as]
+ccm_appconfig_id = "0123456789abcdef"
+"#,
+        )
+        .expect("parse unmeasured ccm_as config");
+
+        let ccm_as = config.ccm_as.expect("ccm_as config is present");
+        assert_eq!(ccm_as.ccm_appconfig_id.as_deref(), Some("0123456789abcdef"));
+    }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_config_without_ccm_as() {
+        let config: super::UnmeasuredConfig =
+            toml::from_str("").expect("parse empty unmeasured config");
+
+        assert_eq!(config.ccm_as, None);
+    }
+
+    #[cfg(feature = "ccm_as")]
+    #[test]
+    fn parse_unmeasured_ccm_as_config_without_ccm_appconfig_id() {
+        let config: super::UnmeasuredConfig =
+            toml::from_str("[ccm_as]").expect("ccm_as config is present with no ccm_appconfig_id");
+
+        assert_eq!(config.ccm_as.unwrap().ccm_appconfig_id, None);
     }
 }
