@@ -82,24 +82,24 @@ impl CcmAsTokenGetter {
 
     async fn attest_and_issue_cert(&self) -> Result<(String, String)> {
         let tee = attester::detect_tee_type();
-        let appconfig_id = self
+        let maybe_appconfig_id_str = self
             .ccm_appconfig_id
             .as_deref()
-            .map(|id| id.trim().to_owned().into_bytes());
+            .map(|id| id.trim().to_owned());
 
         // `AppCert::request_app_cert_csr` in the `fortanix/attestation/client` crate reads the
         // workload cert's subject alt names from this env var rather than taking them as a parameter
         unsafe { std::env::set_var("APP_CERT_ALT_NAMES", self.ccm_domain_names.join(",")) };
-        if let Some(app_configid_str) = self.ccm_appconfig_id.as_ref() {
-            if <[u8; 32]>::from_hex(app_configid_str).is_err() {
+        if let Some(appconfig_id_str) = maybe_appconfig_id_str.as_ref() {
+            if <[u8; 32]>::from_hex(appconfig_id_str).is_err() {
                 bail!(
                     "ccm_as: invalid SHA-256 ccm_appconfig_id: {}",
-                    app_configid_str
+                    appconfig_id_str
                 );
             }
-            unsafe { std::env::set_var("APPCONFIG_ID", app_configid_str) };
+            unsafe { std::env::set_var("APPCONFIG_ID", appconfig_id_str) };
         }
-
+        let appconfig_id_bytes = maybe_appconfig_id_str.map(|id| id.into_bytes());
         tokio::task::spawn_blocking(move || -> Result<(String, String)> {
             let mut app_cert = AppCert::init().context("ccm_as: AppCert::init")?;
             let na_client = NodeAgentClient::init().context("ccm_as: NodeAgentClient::init")?;
@@ -109,7 +109,7 @@ impl CcmAsTokenGetter {
                     BaremetalSevSnp::attest_and_request_app_cert(
                         &mut app_cert,
                         &na_client,
-                        appconfig_id,
+                        appconfig_id_bytes,
                     )
                     .context("ccm_as: SNP attest_and_request_app_cert")?;
                 }
@@ -117,7 +117,7 @@ impl CcmAsTokenGetter {
                     BaremetalTdx::attest_and_request_app_cert(
                         &mut app_cert,
                         &na_client,
-                        appconfig_id,
+                        appconfig_id_bytes,
                     )
                     .context("ccm_as: TDX attest_and_request_app_cert")?;
                 }
