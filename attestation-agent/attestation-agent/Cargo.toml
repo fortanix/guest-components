@@ -49,12 +49,12 @@ ttrpc = { workspace = true, features = ["async"], optional = true }
 
 # SEV-SNP/TDX/NVIDIA attestation and CCM workload-certificate issuance, used
 # by the ccm_as token type.
-attestation = { git = "https://github.com/fortanix/attestation.git", rev = "fade7bf57c93fefaeaca77fe453b87a7909c9cd4", default-features = false, features = [
+attestation = { git = "https://github.com/fortanix/attestation.git", rev = "601d5aab2f0a87de9319d4ddd27d08bdefb14946", default-features = false, features = [
     "sev-guest",
     "tdx-guest",
     "nvidia-evidence",
 ], optional = true }
-client = { git = "https://github.com/fortanix/attestation.git", rev = "fade7bf57c93fefaeaca77fe453b87a7909c9cd4", optional = true }
+client = { git = "https://github.com/fortanix/attestation.git", rev = "601d5aab2f0a87de9319d4ddd27d08bdefb14946", optional = true }
 x509-cert = { version = "0.2.5", features = ["pem"], optional = true }
 
 [dev-dependencies]
