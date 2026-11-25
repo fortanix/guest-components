@@ -100,8 +100,11 @@ impl CcmAsTokenGetter {
             unsafe { std::env::set_var("APPCONFIG_ID", appconfig_id_str) };
         }
         let appconfig_id_bytes = maybe_appconfig_id_str.map(|id| id.into_bytes());
-        
-        let mut app_cert = AppCert::init().context("ccm_as: AppCert::init")?;
+
+        let mut app_cert = tokio::task::spawn_blocking(AppCert::init)
+            .await
+            .context("ccm_as: AppCert::init task failed")?
+            .context("ccm_as: AppCert::init")?;
         let na_client = NodeAgentClient::init()
             .await
             .context("ccm_as: NodeAgentClient::init")?;
