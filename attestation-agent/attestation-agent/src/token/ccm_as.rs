@@ -100,42 +100,46 @@ impl CcmAsTokenGetter {
             unsafe { std::env::set_var("APPCONFIG_ID", appconfig_id_str) };
         }
         let appconfig_id_bytes = maybe_appconfig_id_str.map(|id| id.into_bytes());
-        tokio::task::spawn_blocking(move || -> Result<(String, String)> {
-            let mut app_cert = AppCert::init().context("ccm_as: AppCert::init")?;
-            let na_client = NodeAgentClient::init().context("ccm_as: NodeAgentClient::init")?;
 
-            match tee {
-                Tee::Snp => {
-                    BaremetalSevSnp::attest_and_request_app_cert(
-                        &mut app_cert,
-                        &na_client,
-                        appconfig_id_bytes,
-                    )
-                    .context("ccm_as: SNP attest_and_request_app_cert")?;
-                }
-                Tee::Tdx => {
-                    BaremetalTdx::attest_and_request_app_cert(
-                        &mut app_cert,
-                        &na_client,
-                        appconfig_id_bytes,
-                    )
-                    .context("ccm_as: TDX attest_and_request_app_cert")?;
-                }
-                other => bail!("ccm_as: unsupported TEE {other:?}"),
+        let mut app_cert = tokio::task::spawn_blocking(AppCert::init)
+            .await
+            .context("ccm_as: AppCert::init task failed")?
+            .context("ccm_as: AppCert::init")?;
+        let na_client = NodeAgentClient::init()
+            .await
+            .context("ccm_as: NodeAgentClient::init")?;
+
+        match tee {
+            Tee::Snp => {
+                BaremetalSevSnp::attest_and_request_app_cert(
+                    &mut app_cert,
+                    &na_client,
+                    appconfig_id_bytes,
+                )
+                .await
+                .context("ccm_as: SNP attest_and_request_app_cert")?;
             }
+            Tee::Tdx => {
+                BaremetalTdx::attest_and_request_app_cert(
+                    &mut app_cert,
+                    &na_client,
+                    appconfig_id_bytes,
+                )
+                .await
+                .context("ccm_as: TDX attest_and_request_app_cert")?;
+            }
+            other => bail!("ccm_as: unsupported TEE {other:?}"),
+        }
 
-            let cert_pem = app_cert
-                .cert
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("ccm_as: CCM returned no workload certificate"))?;
-            let key_pem = app_cert
-                .key
-                .write_private_pem_string()
-                .context("ccm_as: export workload private key")?;
+        let cert_pem = app_cert
+            .cert
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("ccm_as: CCM returned no workload certificate"))?;
+        let key_pem = app_cert
+            .key
+            .write_private_pem_string()
+            .context("ccm_as: export workload private key")?;
 
-            Ok((cert_pem, key_pem))
-        })
-        .await
-        .context("ccm_as: spawn_blocking join")?
+        Ok((cert_pem, key_pem))
     }
 }
